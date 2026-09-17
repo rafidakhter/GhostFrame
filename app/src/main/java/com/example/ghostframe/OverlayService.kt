@@ -6,22 +6,20 @@ import android.graphics.Color
 import android.os.IBinder
 import android.provider.Settings
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.graphics.drawable.GradientDrawable
-import android.widget.PopupMenu
 import com.example.ghostframe.overlay.platform.OverlayNotificationFactory
 import com.example.ghostframe.overlay.platform.OverlayWindowHost
 import com.example.ghostframe.overlay.platform.PhotoGestureHandler
 import com.example.ghostframe.overlay.domain.OverlayState
 import com.example.ghostframe.overlay.presentation.OverlayController
+import com.example.ghostframe.overlay.platform.OverlayMenuView
 
 class OverlayService : Service() {
 
 		private lateinit var windowHost: OverlayWindowHost
     private var overlay: FrameLayout? = null
-		private var closeOverlay: Button? = null	
+		private var overlayMenu: OverlayMenuView? = null
 		private var photoView: ImageView? = null
 		private val controller = OverlayController(
 				onStateChanged = { state -> renderOverlay(state) }
@@ -55,56 +53,17 @@ class OverlayService : Service() {
 			overlay = layer
 
 			// Separate button window: fully opaque and tappable.
-			val closeButton = Button(this).apply {
-				text = "☰"
-				textSize = 22f
-				contentDescription = "Overlay options"
+			val menu = OverlayMenuView(
+					context = this,
+					isRepositioning = { controller.state.repositioning },
+					onToggleRepositioning = {
+							controller.setRepositioning(!controller.state.repositioning)
+					},
+					onClose = { stopSelf() }
+			)
 
-				setTextColor(Color.BLACK)
-				backgroundTintList = null
-				background = GradientDrawable().apply {
-						shape = GradientDrawable.OVAL
-						setColor(Color.WHITE)
-				}
-
-				setPadding(0, 0, 0, 0)
-				minWidth = 0
-				minHeight = 0
-
-				setOnClickListener {
-					PopupMenu(this@OverlayService, this).apply {
-							menu.add(
-								0, 1, 0,
-								if (controller.state.repositioning) {
-										"Done repositioning"
-								} else {
-										"Reposition"
-								}
-							)
-							
-							menu.add(0, 2, 1, "Close")
-
-							setOnMenuItemClickListener { item ->
-									when (item.itemId) {
-											1 -> {
-													controller.setRepositioning(!controller.state.repositioning)
-													true
-											}
-											2 -> {
-													stopSelf()
-													true
-											}
-											else -> false
-									}
-							}
-
-							show()
-					}
-				}
-			}
-
-			closeOverlay = closeButton
-			windowHost.show(layer, closeButton)
+			overlayMenu = menu
+			windowHost.show(layer, menu.view)
     }
 
 		override fun onStartCommand(
@@ -164,15 +123,17 @@ class OverlayService : Service() {
 		}
 
 		override fun onDestroy() {
+				overlayMenu?.dismiss()
 				overlay?.setOnTouchListener(null)
 
 				if (::windowHost.isInitialized) {
 						windowHost.remove()
 				}
 
-				closeOverlay = null
-				overlay = null
+				overlayMenu = null
 				photoView = null
+				overlay = null
+
 				stopForeground(STOP_FOREGROUND_REMOVE)
 				super.onDestroy()
 		}
