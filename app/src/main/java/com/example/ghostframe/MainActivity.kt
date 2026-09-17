@@ -12,6 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.ghostframe.ui.theme.GhostFrameTheme
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.material3.Button
+import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,10 +37,28 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
+    val context = LocalContext.current
+
+    Button(
+        modifier = modifier,
+        onClick = {
+            if (Settings.canDrawOverlays(context)) {
+                val intent = Intent(context, OverlayService::class.java)
+                androidx.core.content.ContextCompat.startForegroundService(
+                    context,
+                    intent
+                )
+            } else {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                )
+                context.startActivity(intent)
+            }
+        }
+    ) {
+        Text("Open overlay")
+    }
 }
 
 @Preview(showBackground = true)
