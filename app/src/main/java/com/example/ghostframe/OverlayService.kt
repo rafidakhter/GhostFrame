@@ -18,7 +18,8 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var overlay: FrameLayout? = null
-
+		private var closeOverlay: Button? = null	
+		
     override fun onCreate() {
         super.onCreate()
 
@@ -50,40 +51,49 @@ class OverlayService : Service() {
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        val layer = FrameLayout(this).apply {
-            // Only the background is 50% opaque.
-            setBackgroundColor(Color.argb(128, 0, 0, 0))
-        }
+				// Background window: touches pass through it.
+				val layer = FrameLayout(this).apply {
+						setBackgroundColor(Color.BLACK)
+				}
 
-        val closeButton = Button(this).apply {
-            text = "Close"
-            setTextColor(Color.BLACK)
-            backgroundTintList =
-                android.content.res.ColorStateList.valueOf(Color.WHITE)
-            setOnClickListener { stopSelf() }
-        }
+				val backgroundParams = WindowManager.LayoutParams(
+						WindowManager.LayoutParams.MATCH_PARENT,
+						WindowManager.LayoutParams.MATCH_PARENT,
+						WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+						WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+								WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+						PixelFormat.TRANSLUCENT
+				).apply {
+						alpha = 0.5f
+				}
 
-        val buttonLayout = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.TOP or Gravity.END
-        ).apply {
-            val margin = (16 * resources.displayMetrics.density).toInt()
-            setMargins(margin, margin, margin, margin)
-        }
+				windowManager.addView(layer, backgroundParams)
+				overlay = layer
 
-        layer.addView(closeButton, buttonLayout)
+				// Separate button window: fully opaque and tappable.
+				val closeButton = Button(this).apply {
+						text = "Close"
+						setTextColor(Color.BLACK)
+						backgroundTintList =
+								android.content.res.ColorStateList.valueOf(Color.WHITE)
+						setOnClickListener { stopSelf() }
+				}
 
-        val windowLayout = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            PixelFormat.TRANSLUCENT
-        )
+				val buttonParams = WindowManager.LayoutParams(
+						WindowManager.LayoutParams.WRAP_CONTENT,
+						WindowManager.LayoutParams.WRAP_CONTENT,
+						WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+						WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+						PixelFormat.TRANSLUCENT
+				).apply {
+						gravity = Gravity.TOP or Gravity.END
+						val margin = (16 * resources.displayMetrics.density).toInt()
+						x = margin
+						y = margin
+				}
 
-        windowManager.addView(layer, windowLayout)
-        overlay = layer
+				windowManager.addView(closeButton, buttonParams)
+				closeOverlay = closeButton
     }
 
     override fun onStartCommand(
@@ -92,12 +102,16 @@ class OverlayService : Service() {
         startId: Int
     ): Int = START_NOT_STICKY
 
-    override fun onDestroy() {
-        overlay?.let { windowManager.removeView(it) }
-        overlay = null
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        super.onDestroy()
-    }
+		override fun onDestroy() {
+				closeOverlay?.let { windowManager.removeView(it) }
+				closeOverlay = null
+
+				overlay?.let { windowManager.removeView(it) }
+				overlay = null
+
+				stopForeground(STOP_FOREGROUND_REMOVE)
+				super.onDestroy()
+		}
 
     override fun onBind(intent: Intent?): IBinder? = null
 }

@@ -17,6 +17,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.compose.material3.Button
 import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +49,8 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
                     context,
                     intent
                 )
+                
+                (context as? Activity)?.moveTaskToBack(true)
             } else {
                 val intent = Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
