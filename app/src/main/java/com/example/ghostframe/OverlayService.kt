@@ -15,13 +15,17 @@ import com.example.ghostframe.overlay.platform.OverlayNotificationFactory
 import com.example.ghostframe.overlay.platform.OverlayWindowHost
 import com.example.ghostframe.overlay.platform.PhotoGestureHandler
 import com.example.ghostframe.overlay.domain.OverlayState
+import com.example.ghostframe.overlay.presentation.OverlayController
 
 class OverlayService : Service() {
 
 		private lateinit var windowHost: OverlayWindowHost
     private var overlay: FrameLayout? = null
 		private var closeOverlay: Button? = null	
-		private var overlayState = OverlayState()
+		private var photoView: ImageView? = null
+		private val controller = OverlayController(
+				onStateChanged = { state -> renderOverlay(state) }
+		)
 				
     override fun onCreate() {
 			super.onCreate()
@@ -71,7 +75,7 @@ class OverlayService : Service() {
 					PopupMenu(this@OverlayService, this).apply {
 							menu.add(
 								0, 1, 0,
-								if (overlayState.repositioning) {
+								if (controller.state.repositioning) {
 										"Done repositioning"
 								} else {
 										"Reposition"
@@ -83,7 +87,7 @@ class OverlayService : Service() {
 							setOnMenuItemClickListener { item ->
 									when (item.itemId) {
 											1 -> {
-													setRepositioning(!overlayState.repositioning)
+													controller.setRepositioning(!controller.state.repositioning)
 													true
 											}
 											2 -> {
@@ -129,46 +133,34 @@ class OverlayService : Service() {
 				)
 				
 				// Start each newly selected photo at its original position and size.
-				overlayState = OverlayState()
-				setRepositioning(false)
-				renderPhoto(photo)
-				
-				enablePhotoGestures(layer, photo)
+				photoView = photo
+				controller.reset()
+				enablePhotoGestures(layer)
 				return START_NOT_STICKY
 		}
-		
-		private fun setRepositioning(enabled: Boolean) {
-				if (!::windowHost.isInitialized) return
 
-				windowHost.setTouchThrough(enabled = !enabled)
-				overlayState = overlayState.copy(repositioning = enabled)
-		}
-
-		private fun enablePhotoGestures(
-				layer: FrameLayout,
-				photo: ImageView
-		) {
+		private fun enablePhotoGestures(layer: FrameLayout) {
 				val gestures = PhotoGestureHandler(
 						context = this,
-						isEnabled = { overlayState.repositioning },
-						onDrag = { dx, dy ->
-								overlayState = overlayState.dragBy(dx, dy)
-								renderPhoto(photo)
-						},
-						onZoom = { factor ->
-								overlayState = overlayState.zoomBy(factor)
-								renderPhoto(photo)
-						}
+						isEnabled = { controller.state.repositioning },
+						onDrag = { dx, dy -> controller.dragBy(dx, dy) },
+						onZoom = { factor -> controller.zoomBy(factor) }
 				)
 
 				layer.setOnTouchListener(gestures)
 		}
 
-		private fun renderPhoto(photo: ImageView) {
-				photo.translationX = overlayState.offsetX
-				photo.translationY = overlayState.offsetY
-				photo.scaleX = overlayState.scale
-				photo.scaleY = overlayState.scale
+		private fun renderOverlay(state: OverlayState) {
+			photoView?.let { photo ->
+				photo.translationX = state.offsetX
+				photo.translationY = state.offsetY
+				photo.scaleX = state.scale
+				photo.scaleY = state.scale
+			}
+
+			if (::windowHost.isInitialized) {
+				windowHost.setTouchThrough(enabled = !state.repositioning)
+			}
 		}
 
 		override fun onDestroy() {
@@ -180,7 +172,7 @@ class OverlayService : Service() {
 
 				closeOverlay = null
 				overlay = null
-
+				photoView = null
 				stopForeground(STOP_FOREGROUND_REMOVE)
 				super.onDestroy()
 		}
