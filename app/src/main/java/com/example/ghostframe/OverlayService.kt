@@ -3,10 +3,8 @@ package com.example.ghostframe
 import android.app.Service
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.PixelFormat
 import android.os.IBinder
 import android.provider.Settings
-import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
@@ -16,10 +14,11 @@ import android.widget.PopupMenu
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import com.example.ghostframe.overlay.platform.OverlayNotificationFactory
+import com.example.ghostframe.overlay.platform.OverlayWindowHost
 
 class OverlayService : Service() {
 
-    private lateinit var windowManager: WindowManager
+		private lateinit var windowHost: OverlayWindowHost
     private var overlay: FrameLayout? = null
 		private var closeOverlay: Button? = null	
 		private var repositioning = false
@@ -39,25 +38,16 @@ class OverlayService : Service() {
 					return
 			}
 
-			windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+			windowHost = OverlayWindowHost(
+				windowManager = getSystemService(WINDOW_SERVICE) as WindowManager,
+				density = resources.displayMetrics.density
+			)
 
 			// Background window: touches pass through it.
 			val layer = FrameLayout(this).apply {
 				setBackgroundColor(Color.TRANSPARENT)				
 			}
 
-			val backgroundParams = WindowManager.LayoutParams(
-					WindowManager.LayoutParams.MATCH_PARENT,
-					WindowManager.LayoutParams.MATCH_PARENT,
-					WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-					WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-							WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-					PixelFormat.TRANSLUCENT
-			).apply {
-					alpha = 0.5f
-			}
-
-			windowManager.addView(layer, backgroundParams)
 			overlay = layer
 
 			// Separate button window: fully opaque and tappable.
@@ -104,21 +94,8 @@ class OverlayService : Service() {
 				}
 			}
 
-			val buttonParams = WindowManager.LayoutParams(
-					(56 * resources.displayMetrics.density).toInt(),
-					(56 * resources.displayMetrics.density).toInt(),
-					WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-					WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-					PixelFormat.TRANSLUCENT
-			).apply {
-					gravity = Gravity.TOP or Gravity.END
-					val margin = (16 * resources.displayMetrics.density).toInt()
-					x = margin
-					y = margin
-			}
-
-			windowManager.addView(closeButton, buttonParams)
 			closeOverlay = closeButton
+			windowHost.show(layer, closeButton)
     }
 
 		override fun onStartCommand(
@@ -126,7 +103,10 @@ class OverlayService : Service() {
 				flags: Int,
 				startId: Int
 		): Int {
-				val photoUri = intent?.data ?: return START_NOT_STICKY
+				val photoUri = intent?.data ?: run {
+						stopSelf()
+						return START_NOT_STICKY
+				}
 				val layer = overlay ?: return START_NOT_STICKY
 
 				val photo = ImageView(this).apply {
@@ -148,21 +128,10 @@ class OverlayService : Service() {
 		}
 		
 		private fun setRepositioning(enabled: Boolean) {
-				val layer = overlay ?: return
-				val params = layer.layoutParams as WindowManager.LayoutParams
+			if (!::windowHost.isInitialized) return
 
-				params.flags = if (enabled) {
-						// Receive gestures to move and resize the photo.
-						params.flags and
-								WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-				} else {
-						// Send touches to the app underneath again.
-						params.flags or
-								WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-				}
-
-				windowManager.updateViewLayout(layer, params)
-				repositioning = enabled
+			windowHost.setTouchThrough(enabled = !enabled)
+			repositioning = enabled
 		}
 
 		private fun enablePhotoGestures(
@@ -240,10 +209,11 @@ class OverlayService : Service() {
 		}
 
 		override fun onDestroy() {
-				closeOverlay?.let { windowManager.removeView(it) }
-				closeOverlay = null
+				if (::windowHost.isInitialized) {
+						windowHost.remove()
+				}
 
-				overlay?.let { windowManager.removeView(it) }
+				closeOverlay = null
 				overlay = null
 
 				stopForeground(STOP_FOREGROUND_REMOVE)
