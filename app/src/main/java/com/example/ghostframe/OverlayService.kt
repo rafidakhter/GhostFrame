@@ -13,6 +13,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageView
 
 class OverlayService : Service() {
 
@@ -53,7 +54,7 @@ class OverlayService : Service() {
 
 				// Background window: touches pass through it.
 				val layer = FrameLayout(this).apply {
-						setBackgroundColor(Color.BLACK)
+					setBackgroundColor(Color.TRANSPARENT)				
 				}
 
 				val backgroundParams = WindowManager.LayoutParams(
@@ -96,11 +97,30 @@ class OverlayService : Service() {
 				closeOverlay = closeButton
     }
 
-    override fun onStartCommand(
-        intent: Intent?,
-        flags: Int,
-        startId: Int
-    ): Int = START_NOT_STICKY
+		override fun onStartCommand(
+				intent: Intent?,
+				flags: Int,
+				startId: Int
+		): Int {
+				val photoUri = intent?.data ?: return START_NOT_STICKY
+				val layer = overlay ?: return START_NOT_STICKY
+
+				val photo = ImageView(this).apply {
+						scaleType = ImageView.ScaleType.FIT_CENTER
+						setImageURI(photoUri)
+				}
+
+				layer.removeAllViews()
+				layer.addView(
+						photo,
+						FrameLayout.LayoutParams(
+								FrameLayout.LayoutParams.MATCH_PARENT,
+								FrameLayout.LayoutParams.MATCH_PARENT
+						)
+				)
+
+				return START_NOT_STICKY
+		}
 
 		override fun onDestroy() {
 				closeOverlay?.let { windowManager.removeView(it) }

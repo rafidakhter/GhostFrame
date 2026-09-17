@@ -18,6 +18,12 @@ import android.provider.Settings
 import androidx.compose.material3.Button
 import androidx.compose.ui.platform.LocalContext
 import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,28 +45,57 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val selectedPhoto = remember { mutableStateOf<Uri?>(null) }
 
-    Button(
-        modifier = modifier,
-        onClick = {
-            if (Settings.canDrawOverlays(context)) {
-                val intent = Intent(context, OverlayService::class.java)
-                androidx.core.content.ContextCompat.startForegroundService(
-                    context,
-                    intent
-                )
-                
-                (context as? Activity)?.moveTaskToBack(true)
-            } else {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${context.packageName}")
-                )
-                context.startActivity(intent)
-            }
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            selectedPhoto.value = uri
         }
-    ) {
-        Text("Open overlay")
+    }
+    
+    Column(modifier = modifier) {
+      Button(
+          onClick = {
+              photoPicker.launch(
+                  PickVisualMediaRequest(
+                      ActivityResultContracts.PickVisualMedia.ImageOnly
+                  )
+              )
+          }
+      ) {
+          Text("Choose photo")
+      }
+
+      if (selectedPhoto.value != null) {
+          Text("Photo selected")
+      }
+        
+      Button(
+          modifier = modifier,
+          onClick = {
+              if (Settings.canDrawOverlays(context)) {
+                  val intent = Intent(context, OverlayService::class.java).apply {
+                      data = selectedPhoto.value
+                  }
+                  androidx.core.content.ContextCompat.startForegroundService(
+                      context,
+                      intent
+                  )
+                  
+                  (context as? Activity)?.moveTaskToBack(true)
+              } else {
+                  val intent = Intent(
+                      Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                      Uri.parse("package:${context.packageName}")
+                  )
+                  context.startActivity(intent)
+              }
+          }
+      ) {
+          Text("Open overlay")
+      }
     }
 }
 
