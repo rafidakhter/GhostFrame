@@ -14,6 +14,11 @@ import com.example.ghostframe.overlay.platform.PhotoGestureHandler
 import com.example.ghostframe.overlay.domain.OverlayState
 import com.example.ghostframe.overlay.presentation.OverlayController
 import com.example.ghostframe.overlay.platform.OverlayMenuView
+import android.widget.Toast
+import coil3.SingletonImageLoader
+import com.example.ghostframe.overlay.data.CoilPhotoLoader
+import com.example.ghostframe.overlay.data.PhotoLoad
+import com.example.ghostframe.overlay.data.PhotoLoader
 
 class OverlayService : Service() {
 
@@ -24,7 +29,8 @@ class OverlayService : Service() {
 		private val controller = OverlayController(
 				onStateChanged = { state -> renderOverlay(state) }
 		)
-				
+		private var photoLoad: PhotoLoad? = null
+	
     override fun onCreate() {
 			super.onCreate()
 
@@ -75,11 +81,19 @@ class OverlayService : Service() {
 						stopSelf()
 						return START_NOT_STICKY
 				}
-				val layer = overlay ?: return START_NOT_STICKY
+
+				val layer = overlay ?: run {
+						stopSelf()
+						return START_NOT_STICKY
+				}
+
+				// Cancel the previous request before loading another photo.
+				photoLoad?.cancel()
+				photoLoad = null
+				layer.setOnTouchListener(null)
 
 				val photo = ImageView(this).apply {
 						scaleType = ImageView.ScaleType.FIT_CENTER
-						setImageURI(photoUri)
 				}
 
 				layer.removeAllViews()
@@ -90,12 +104,43 @@ class OverlayService : Service() {
 								FrameLayout.LayoutParams.MATCH_PARENT
 						)
 				)
-				
-				// Start each newly selected photo at its original position and size.
+
 				photoView = photo
 				controller.reset()
 				enablePhotoGestures(layer)
+
+				val metrics = resources.displayMetrics
+
+				photoLoad = photoLoader.load(
+						uri = photoUri,
+						width = metrics.widthPixels,
+						height = metrics.heightPixels,
+						onSuccess = { drawable ->
+								if (photoView === photo) {
+										photo.setImageDrawable(drawable)
+								}
+						},
+						onError = {
+								if (photoView === photo) {
+										Toast.makeText(
+												this,
+												"Could not open this photo. Please choose another.",
+												Toast.LENGTH_LONG
+										).show()
+
+										stopSelf(startId)
+								}
+						}
+				)
+
 				return START_NOT_STICKY
+		}
+		
+		private val photoLoader: PhotoLoader by lazy {
+				CoilPhotoLoader(
+						context = applicationContext,
+						imageLoader = SingletonImageLoader.get(applicationContext)
+				)
 		}
 
 		private fun enablePhotoGestures(layer: FrameLayout) {
@@ -123,6 +168,10 @@ class OverlayService : Service() {
 		}
 
 		override fun onDestroy() {
+				photoView = null
+				photoLoad?.cancel()
+				photoLoad = null
+
 				overlayMenu?.dismiss()
 				overlay?.setOnTouchListener(null)
 
@@ -131,7 +180,6 @@ class OverlayService : Service() {
 				}
 
 				overlayMenu = null
-				photoView = null
 				overlay = null
 
 				stopForeground(STOP_FOREGROUND_REMOVE)
