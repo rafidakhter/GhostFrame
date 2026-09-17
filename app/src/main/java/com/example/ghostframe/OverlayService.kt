@@ -11,18 +11,18 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.graphics.drawable.GradientDrawable
 import android.widget.PopupMenu
-import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import com.example.ghostframe.overlay.platform.OverlayNotificationFactory
 import com.example.ghostframe.overlay.platform.OverlayWindowHost
+import com.example.ghostframe.overlay.platform.PhotoGestureHandler
+import com.example.ghostframe.overlay.domain.OverlayState
 
 class OverlayService : Service() {
 
 		private lateinit var windowHost: OverlayWindowHost
     private var overlay: FrameLayout? = null
 		private var closeOverlay: Button? = null	
-		private var repositioning = false
-		
+		private var overlayState = OverlayState()
+				
     override fun onCreate() {
 			super.onCreate()
 
@@ -70,15 +70,20 @@ class OverlayService : Service() {
 				setOnClickListener {
 					PopupMenu(this@OverlayService, this).apply {
 							menu.add(
-									0, 1, 0,
-									if (repositioning) "Done repositioning" else "Reposition"
+								0, 1, 0,
+								if (overlayState.repositioning) {
+										"Done repositioning"
+								} else {
+										"Reposition"
+								}
 							)
+							
 							menu.add(0, 2, 1, "Close")
 
 							setOnMenuItemClickListener { item ->
 									when (item.itemId) {
 											1 -> {
-													setRepositioning(!repositioning)
+													setRepositioning(!overlayState.repositioning)
 													true
 											}
 											2 -> {
@@ -123,92 +128,52 @@ class OverlayService : Service() {
 						)
 				)
 				
+				// Start each newly selected photo at its original position and size.
+				overlayState = OverlayState()
+				setRepositioning(false)
+				renderPhoto(photo)
+				
 				enablePhotoGestures(layer, photo)
 				return START_NOT_STICKY
 		}
 		
 		private fun setRepositioning(enabled: Boolean) {
-			if (!::windowHost.isInitialized) return
+				if (!::windowHost.isInitialized) return
 
-			windowHost.setTouchThrough(enabled = !enabled)
-			repositioning = enabled
+				windowHost.setTouchThrough(enabled = !enabled)
+				overlayState = overlayState.copy(repositioning = enabled)
 		}
 
 		private fun enablePhotoGestures(
 				layer: FrameLayout,
 				photo: ImageView
 		) {
-				val scaleDetector = ScaleGestureDetector(
-						this,
-						object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-								override fun onScale(
-										detector: ScaleGestureDetector
-								): Boolean {
-										val scale = (photo.scaleX * detector.scaleFactor)
-												.coerceIn(0.25f, 4f)
-
-										photo.scaleX = scale
-										photo.scaleY = scale
-										return true
-								}
+				val gestures = PhotoGestureHandler(
+						context = this,
+						isEnabled = { overlayState.repositioning },
+						onDrag = { dx, dy ->
+								overlayState = overlayState.dragBy(dx, dy)
+								renderPhoto(photo)
+						},
+						onZoom = { factor ->
+								overlayState = overlayState.zoomBy(factor)
+								renderPhoto(photo)
 						}
 				)
 
-				var lastX = 0f
-				var lastY = 0f
-				var dragging = false
+				layer.setOnTouchListener(gestures)
+		}
 
-				layer.setOnTouchListener { view, event ->
-						if (!repositioning) {
-								return@setOnTouchListener false
-						}
-
-						scaleDetector.onTouchEvent(event)
-
-						when (event.actionMasked) {
-								MotionEvent.ACTION_DOWN -> {
-										lastX = event.x
-										lastY = event.y
-										dragging = true
-								}
-
-								MotionEvent.ACTION_MOVE -> {
-										if (event.pointerCount == 1 &&
-												!scaleDetector.isInProgress
-										) {
-												if (dragging) {
-														photo.translationX += event.x - lastX
-														photo.translationY += event.y - lastY
-												}
-
-												lastX = event.x
-												lastY = event.y
-												dragging = true
-										} else {
-												dragging = false
-										}
-								}
-
-								MotionEvent.ACTION_POINTER_DOWN,
-								MotionEvent.ACTION_POINTER_UP -> {
-										dragging = false
-								}
-
-								MotionEvent.ACTION_UP -> {
-										dragging = false
-										view.performClick()
-								}
-
-								MotionEvent.ACTION_CANCEL -> {
-										dragging = false
-								}
-						}
-
-						true
-				}
+		private fun renderPhoto(photo: ImageView) {
+				photo.translationX = overlayState.offsetX
+				photo.translationY = overlayState.offsetY
+				photo.scaleX = overlayState.scale
+				photo.scaleY = overlayState.scale
 		}
 
 		override fun onDestroy() {
+				overlay?.setOnTouchListener(null)
+
 				if (::windowHost.isInitialized) {
 						windowHost.remove()
 				}
