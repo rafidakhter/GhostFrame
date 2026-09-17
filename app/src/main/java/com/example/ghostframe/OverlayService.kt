@@ -1,8 +1,5 @@
 package com.example.ghostframe
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.graphics.Color
@@ -18,6 +15,7 @@ import android.graphics.drawable.GradientDrawable
 import android.widget.PopupMenu
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import com.example.ghostframe.overlay.platform.OverlayNotificationFactory
 
 class OverlayService : Service() {
 
@@ -27,114 +25,100 @@ class OverlayService : Service() {
 		private var repositioning = false
 		
     override fun onCreate() {
-        super.onCreate()
+			super.onCreate()
 
-        // Keep the overlay running with a foreground notification.
-        val channelId = "ghostframe_overlay"
-        val notifications = getSystemService(NotificationManager::class.java)
+			val notificationFactory = OverlayNotificationFactory(this)
 
-        notifications.createNotificationChannel(
-            NotificationChannel(
-                channelId,
-                "GhostFrame overlay",
-                NotificationManager.IMPORTANCE_LOW
-            )
-        )
+			startForeground(
+					OverlayNotificationFactory.NOTIFICATION_ID,
+					notificationFactory.create()
+			)
 
-        val notification = Notification.Builder(this, channelId)
-            .setContentTitle("GhostFrame overlay is running")
-            .setContentText("Tap Close on the overlay to stop.")
-            .setSmallIcon(android.R.drawable.ic_menu_view)
-            .setOngoing(true)
-            .build()
+			if (!Settings.canDrawOverlays(this)) {
+					stopSelf()
+					return
+			}
 
-        startForeground(1, notification)
+			windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        if (!Settings.canDrawOverlays(this)) {
-            stopSelf()
-            return
-        }
+			// Background window: touches pass through it.
+			val layer = FrameLayout(this).apply {
+				setBackgroundColor(Color.TRANSPARENT)				
+			}
 
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+			val backgroundParams = WindowManager.LayoutParams(
+					WindowManager.LayoutParams.MATCH_PARENT,
+					WindowManager.LayoutParams.MATCH_PARENT,
+					WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+					WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+							WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+					PixelFormat.TRANSLUCENT
+			).apply {
+					alpha = 0.5f
+			}
 
-				// Background window: touches pass through it.
-				val layer = FrameLayout(this).apply {
-					setBackgroundColor(Color.TRANSPARENT)				
+			windowManager.addView(layer, backgroundParams)
+			overlay = layer
+
+			// Separate button window: fully opaque and tappable.
+			val closeButton = Button(this).apply {
+				text = "☰"
+				textSize = 22f
+				contentDescription = "Overlay options"
+
+				setTextColor(Color.BLACK)
+				backgroundTintList = null
+				background = GradientDrawable().apply {
+						shape = GradientDrawable.OVAL
+						setColor(Color.WHITE)
 				}
 
-				val backgroundParams = WindowManager.LayoutParams(
-						WindowManager.LayoutParams.MATCH_PARENT,
-						WindowManager.LayoutParams.MATCH_PARENT,
-						WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-						WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-								WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-						PixelFormat.TRANSLUCENT
-				).apply {
-						alpha = 0.5f
-				}
+				setPadding(0, 0, 0, 0)
+				minWidth = 0
+				minHeight = 0
 
-				windowManager.addView(layer, backgroundParams)
-				overlay = layer
+				setOnClickListener {
+					PopupMenu(this@OverlayService, this).apply {
+							menu.add(
+									0, 1, 0,
+									if (repositioning) "Done repositioning" else "Reposition"
+							)
+							menu.add(0, 2, 1, "Close")
 
-				// Separate button window: fully opaque and tappable.
-				val closeButton = Button(this).apply {
-					text = "☰"
-					textSize = 22f
-					contentDescription = "Overlay options"
+							setOnMenuItemClickListener { item ->
+									when (item.itemId) {
+											1 -> {
+													setRepositioning(!repositioning)
+													true
+											}
+											2 -> {
+													stopSelf()
+													true
+											}
+											else -> false
+									}
+							}
 
-					setTextColor(Color.BLACK)
-					backgroundTintList = null
-					background = GradientDrawable().apply {
-							shape = GradientDrawable.OVAL
-							setColor(Color.WHITE)
-					}
-
-					setPadding(0, 0, 0, 0)
-					minWidth = 0
-					minHeight = 0
-
-					setOnClickListener {
-						PopupMenu(this@OverlayService, this).apply {
-								menu.add(
-										0, 1, 0,
-										if (repositioning) "Done repositioning" else "Reposition"
-								)
-								menu.add(0, 2, 1, "Close")
-
-								setOnMenuItemClickListener { item ->
-										when (item.itemId) {
-												1 -> {
-														setRepositioning(!repositioning)
-														true
-												}
-												2 -> {
-														stopSelf()
-														true
-												}
-												else -> false
-										}
-								}
-
-								show()
-						}
+							show()
 					}
 				}
+			}
 
-				val buttonParams = WindowManager.LayoutParams(
-						(56 * resources.displayMetrics.density).toInt(),
-						(56 * resources.displayMetrics.density).toInt(),
-						WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-						WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-						PixelFormat.TRANSLUCENT
-				).apply {
-						gravity = Gravity.TOP or Gravity.END
-						val margin = (16 * resources.displayMetrics.density).toInt()
-						x = margin
-						y = margin
-				}
+			val buttonParams = WindowManager.LayoutParams(
+					(56 * resources.displayMetrics.density).toInt(),
+					(56 * resources.displayMetrics.density).toInt(),
+					WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+					WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+					PixelFormat.TRANSLUCENT
+			).apply {
+					gravity = Gravity.TOP or Gravity.END
+					val margin = (16 * resources.displayMetrics.density).toInt()
+					x = margin
+					y = margin
+			}
 
-				windowManager.addView(closeButton, buttonParams)
-				closeOverlay = closeButton
+			windowManager.addView(closeButton, buttonParams)
+			closeOverlay = closeButton
     }
 
 		override fun onStartCommand(
