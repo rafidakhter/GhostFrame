@@ -2,12 +2,9 @@ package com.example.ghostframe
 
 import android.app.Service
 import android.content.Intent
-import android.graphics.Color
 import android.os.IBinder
 import android.provider.Settings
 import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.ImageView
 import com.example.ghostframe.overlay.platform.OverlayNotificationFactory
 import com.example.ghostframe.overlay.platform.OverlayWindowHost
 import com.example.ghostframe.overlay.platform.PhotoGestureHandler
@@ -19,13 +16,14 @@ import coil3.SingletonImageLoader
 import com.example.ghostframe.overlay.data.CoilPhotoLoader
 import com.example.ghostframe.overlay.data.PhotoLoad
 import com.example.ghostframe.overlay.data.PhotoLoader
+import com.example.ghostframe.overlay.platform.OverlayPhotoView
 
 class OverlayService : Service() {
 
 		private lateinit var windowHost: OverlayWindowHost
-    private var overlay: FrameLayout? = null
+		private var overlay: OverlayPhotoView? = null
+		private var photoRequestId = 0
 		private var overlayMenu: OverlayMenuView? = null
-		private var photoView: ImageView? = null
 		private val controller = OverlayController(
 				onStateChanged = { state -> renderOverlay(state) }
 		)
@@ -51,12 +49,9 @@ class OverlayService : Service() {
 				density = resources.displayMetrics.density
 			)
 
-			// Background window: touches pass through it.
-			val layer = FrameLayout(this).apply {
-				setBackgroundColor(Color.TRANSPARENT)				
-			}
-
+			val layer = OverlayPhotoView(this)
 			overlay = layer
+			enablePhotoGestures(layer)
 
 			// Separate button window: fully opaque and tappable.
 			val menu = OverlayMenuView(
@@ -87,27 +82,13 @@ class OverlayService : Service() {
 						return START_NOT_STICKY
 				}
 
-				// Cancel the previous request before loading another photo.
+				// Invalidate old callbacks before cancelling the old request.
+				val requestId = ++photoRequestId
 				photoLoad?.cancel()
 				photoLoad = null
-				layer.setOnTouchListener(null)
 
-				val photo = ImageView(this).apply {
-						scaleType = ImageView.ScaleType.FIT_CENTER
-				}
-
-				layer.removeAllViews()
-				layer.addView(
-						photo,
-						FrameLayout.LayoutParams(
-								FrameLayout.LayoutParams.MATCH_PARENT,
-								FrameLayout.LayoutParams.MATCH_PARENT
-						)
-				)
-
-				photoView = photo
+				layer.clearPhoto()
 				controller.reset()
-				enablePhotoGestures(layer)
 
 				val metrics = resources.displayMetrics
 
@@ -116,12 +97,12 @@ class OverlayService : Service() {
 						width = metrics.widthPixels,
 						height = metrics.heightPixels,
 						onSuccess = { drawable ->
-								if (photoView === photo) {
-										photo.setImageDrawable(drawable)
+								if (requestId == photoRequestId && overlay === layer) {
+										layer.showPhoto(drawable)
 								}
 						},
 						onError = {
-								if (photoView === photo) {
+								if (requestId == photoRequestId && overlay === layer) {
 										Toast.makeText(
 												this,
 												"Could not open this photo. Please choose another.",
@@ -135,7 +116,7 @@ class OverlayService : Service() {
 
 				return START_NOT_STICKY
 		}
-		
+				
 		private val photoLoader: PhotoLoader by lazy {
 				CoilPhotoLoader(
 						context = applicationContext,
@@ -143,7 +124,7 @@ class OverlayService : Service() {
 				)
 		}
 
-		private fun enablePhotoGestures(layer: FrameLayout) {
+		private fun enablePhotoGestures(layer: OverlayPhotoView) {
 				val gestures = PhotoGestureHandler(
 						context = this,
 						isEnabled = { controller.state.repositioning },
@@ -155,25 +136,21 @@ class OverlayService : Service() {
 		}
 
 		private fun renderOverlay(state: OverlayState) {
-			photoView?.let { photo ->
-				photo.translationX = state.offsetX
-				photo.translationY = state.offsetY
-				photo.scaleX = state.scale
-				photo.scaleY = state.scale
-			}
+				overlay?.render(state)
 
-			if (::windowHost.isInitialized) {
-				windowHost.setTouchThrough(enabled = !state.repositioning)
-			}
+				if (::windowHost.isInitialized) {
+						windowHost.setTouchThrough(enabled = !state.repositioning)
+				}
 		}
 
 		override fun onDestroy() {
-				photoView = null
+				photoRequestId++
 				photoLoad?.cancel()
 				photoLoad = null
 
 				overlayMenu?.dismiss()
 				overlay?.setOnTouchListener(null)
+				overlay?.clearPhoto()
 
 				if (::windowHost.isInitialized) {
 						windowHost.remove()
