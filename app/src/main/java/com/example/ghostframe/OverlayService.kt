@@ -60,7 +60,10 @@ class OverlayService : Service() {
             context = this,
             isRepositioning = { controller.state.repositioning },
             onToggleRepositioning = {
-                controller.setRepositioning(!controller.state.repositioning)
+                hideOpacitySlider()
+                controller.setRepositioning(
+                    !controller.state.repositioning
+                )
             },
             onToggleOpacity = { toggleOpacitySlider() },
             onClose = { stopSelf() }
@@ -141,7 +144,7 @@ class OverlayService : Service() {
     private fun renderOverlay(state: OverlayState) {
         overlay?.render(state)
         opacitySlider?.render(state.opacity)
-        
+
         if (::windowHost.isInitialized) {
             windowHost.setTouchThrough(
                 enabled = !state.repositioning
@@ -159,13 +162,20 @@ class OverlayService : Service() {
 
         controller.setRepositioning(false)
 
-        val slider = OpacitySliderView(this) { opacity ->
-            controller.setOpacity(opacity)
-        }
+        val slider = OpacitySliderView(
+            context = this,
+            onDismiss = { hideOpacitySlider() },
+            onOpacityChanged = { controller.setOpacity(it) }
+        )
 
         slider.render(controller.state.opacity)
         opacitySlider = slider
         windowHost.showOpacityControl(slider)
+    }
+
+    private fun hideOpacitySlider() {
+        windowHost.hideOpacityControl()
+        opacitySlider = null
     }
 
     override fun onDestroy() {
