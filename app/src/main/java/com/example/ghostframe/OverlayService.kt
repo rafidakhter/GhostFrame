@@ -17,151 +17,176 @@ import com.example.ghostframe.overlay.data.CoilPhotoLoader
 import com.example.ghostframe.overlay.data.PhotoLoad
 import com.example.ghostframe.overlay.data.PhotoLoader
 import com.example.ghostframe.overlay.platform.OverlayPhotoView
+import com.example.ghostframe.overlay.platform.OpacitySliderView
 
 class OverlayService : Service() {
 
-		private lateinit var windowHost: OverlayWindowHost
-		private var overlay: OverlayPhotoView? = null
-		private var photoRequestId = 0
-		private var overlayMenu: OverlayMenuView? = null
-		private val controller = OverlayController(
-				onStateChanged = { state -> renderOverlay(state) }
-		)
-		private var photoLoad: PhotoLoad? = null
-	
+    private lateinit var windowHost: OverlayWindowHost
+    private var overlay: OverlayPhotoView? = null
+    private var photoRequestId = 0
+    private var overlayMenu: OverlayMenuView? = null
+    private val controller = OverlayController(
+        onStateChanged = { state -> renderOverlay(state) }
+    )
+    private var photoLoad: PhotoLoad? = null
+    private var opacitySlider: OpacitySliderView? = null
+
     override fun onCreate() {
-			super.onCreate()
+        super.onCreate()
 
-			val notificationFactory = OverlayNotificationFactory(this)
+        val notificationFactory = OverlayNotificationFactory(this)
 
-			startForeground(
-					OverlayNotificationFactory.NOTIFICATION_ID,
-					notificationFactory.create()
-			)
+        startForeground(
+            OverlayNotificationFactory.NOTIFICATION_ID,
+            notificationFactory.create()
+        )
 
-			if (!Settings.canDrawOverlays(this)) {
-					stopSelf()
-					return
-			}
+        if (!Settings.canDrawOverlays(this)) {
+            stopSelf()
+            return
+        }
 
-			windowHost = OverlayWindowHost(
-				windowManager = getSystemService(WINDOW_SERVICE) as WindowManager,
-				density = resources.displayMetrics.density
-			)
+        windowHost = OverlayWindowHost(
+            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager,
+            density = resources.displayMetrics.density
+        )
 
-			val layer = OverlayPhotoView(this)
-			overlay = layer
-			enablePhotoGestures(layer)
+        val layer = OverlayPhotoView(this)
+        overlay = layer
+        enablePhotoGestures(layer)
 
-			// Separate button window: fully opaque and tappable.
-			val menu = OverlayMenuView(
-					context = this,
-					isRepositioning = { controller.state.repositioning },
-					onToggleRepositioning = {
-							controller.setRepositioning(!controller.state.repositioning)
-					},
-					onClose = { stopSelf() }
-			)
+        // Separate button window: fully opaque and tappable.
+        val menu = OverlayMenuView(
+            context = this,
+            isRepositioning = { controller.state.repositioning },
+            onToggleRepositioning = {
+                controller.setRepositioning(!controller.state.repositioning)
+            },
+            onToggleOpacity = { toggleOpacitySlider() },
+            onClose = { stopSelf() }
+        )
 
-			overlayMenu = menu
-			windowHost.show(layer, menu.view)
+        overlayMenu = menu
+        windowHost.show(layer, menu.view)
     }
 
-		override fun onStartCommand(
-				intent: Intent?,
-				flags: Int,
-				startId: Int
-		): Int {
-				val photoUri = intent?.data ?: run {
-						stopSelf()
-						return START_NOT_STICKY
-				}
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int
+    ): Int {
+        val photoUri = intent?.data ?: run {
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
-				val layer = overlay ?: run {
-						stopSelf()
-						return START_NOT_STICKY
-				}
+        val layer = overlay ?: run {
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
-				// Invalidate old callbacks before cancelling the old request.
-				val requestId = ++photoRequestId
-				photoLoad?.cancel()
-				photoLoad = null
+        // Invalidate old callbacks before cancelling the old request.
+        val requestId = ++photoRequestId
+        photoLoad?.cancel()
+        photoLoad = null
 
-				layer.clearPhoto()
-				controller.reset()
+        layer.clearPhoto()
+        controller.reset()
 
-				val metrics = resources.displayMetrics
+        val metrics = resources.displayMetrics
 
-				photoLoad = photoLoader.load(
-						uri = photoUri,
-						width = metrics.widthPixels,
-						height = metrics.heightPixels,
-						onSuccess = { drawable ->
-								if (requestId == photoRequestId && overlay === layer) {
-										layer.showPhoto(drawable)
-								}
-						},
-						onError = {
-								if (requestId == photoRequestId && overlay === layer) {
-										Toast.makeText(
-												this,
-												"Could not open this photo. Please choose another.",
-												Toast.LENGTH_LONG
-										).show()
+        photoLoad = photoLoader.load(
+            uri = photoUri,
+            width = metrics.widthPixels,
+            height = metrics.heightPixels,
+            onSuccess = { drawable ->
+                if (requestId == photoRequestId && overlay === layer) {
+                    layer.showPhoto(drawable)
+                }
+            },
+            onError = {
+                if (requestId == photoRequestId && overlay === layer) {
+                    Toast.makeText(
+                        this,
+                        "Could not open this photo. Please choose another.",
+                        Toast.LENGTH_LONG
+                    ).show()
 
-										stopSelf(startId)
-								}
-						}
-				)
+                    stopSelf(startId)
+                }
+            }
+        )
 
-				return START_NOT_STICKY
-		}
-				
-		private val photoLoader: PhotoLoader by lazy {
-				CoilPhotoLoader(
-						context = applicationContext,
-						imageLoader = SingletonImageLoader.get(applicationContext)
-				)
-		}
+        return START_NOT_STICKY
+    }
 
-		private fun enablePhotoGestures(layer: OverlayPhotoView) {
-				val gestures = PhotoGestureHandler(
-						context = this,
-						isEnabled = { controller.state.repositioning },
-						onDrag = { dx, dy -> controller.dragBy(dx, dy) },
-						onZoom = { factor -> controller.zoomBy(factor) }
-				)
+    private val photoLoader: PhotoLoader by lazy {
+        CoilPhotoLoader(
+            context = applicationContext,
+            imageLoader = SingletonImageLoader.get(applicationContext)
+        )
+    }
 
-				layer.setOnTouchListener(gestures)
-		}
+    private fun enablePhotoGestures(layer: OverlayPhotoView) {
+        val gestures = PhotoGestureHandler(
+            context = this,
+            isEnabled = { controller.state.repositioning },
+            onDrag = { dx, dy -> controller.dragBy(dx, dy) },
+            onZoom = { factor -> controller.zoomBy(factor) }
+        )
 
-		private fun renderOverlay(state: OverlayState) {
-				overlay?.render(state)
+        layer.setOnTouchListener(gestures)
+    }
 
-				if (::windowHost.isInitialized) {
-						windowHost.setTouchThrough(enabled = !state.repositioning)
-				}
-		}
+    private fun renderOverlay(state: OverlayState) {
+        overlay?.render(state)
+        opacitySlider?.render(state.opacity)
+        
+        if (::windowHost.isInitialized) {
+            windowHost.setTouchThrough(
+                enabled = !state.repositioning
+            )
+            windowHost.setOpacity(state.opacity)
+        }
+    }
 
-		override fun onDestroy() {
-				photoRequestId++
-				photoLoad?.cancel()
-				photoLoad = null
+    private fun toggleOpacitySlider() {
+        if (opacitySlider != null) {
+            windowHost.hideOpacityControl()
+            opacitySlider = null
+            return
+        }
 
-				overlayMenu?.dismiss()
-				overlay?.setOnTouchListener(null)
-				overlay?.clearPhoto()
+        controller.setRepositioning(false)
 
-				if (::windowHost.isInitialized) {
-						windowHost.remove()
-				}
+        val slider = OpacitySliderView(this) { opacity ->
+            controller.setOpacity(opacity)
+        }
 
-				overlayMenu = null
-				overlay = null
+        slider.render(controller.state.opacity)
+        opacitySlider = slider
+        windowHost.showOpacityControl(slider)
+    }
 
-				stopForeground(STOP_FOREGROUND_REMOVE)
-				super.onDestroy()
-		}
+    override fun onDestroy() {
+        photoRequestId++
+        photoLoad?.cancel()
+        photoLoad = null
+        opacitySlider = null
+        overlayMenu?.dismiss()
+        overlay?.setOnTouchListener(null)
+        overlay?.clearPhoto()
+
+        if (::windowHost.isInitialized) {
+            windowHost.remove()
+        }
+
+        overlayMenu = null
+        overlay = null
+
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 }

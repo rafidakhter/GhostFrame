@@ -12,7 +12,8 @@ class OverlayWindowHost(
     private var background: View? = null
     private var controls: View? = null
     private var backgroundParams: WindowManager.LayoutParams? = null
-
+		private var opacityControl: View? = null
+		
     fun show(backgroundView: View, controlsView: View) {
         remove()
 
@@ -66,8 +67,32 @@ class OverlayWindowHost(
 
         windowManager.updateViewLayout(view, params)
     }
+    
+    fun showOpacityControl(view: View) {
+				hideOpacityControl()
+
+				val params = WindowManager.LayoutParams(
+						dp(260),
+						dp(96),
+						WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+						WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+						PixelFormat.TRANSLUCENT
+				).apply {
+						gravity = Gravity.END or Gravity.CENTER_VERTICAL
+						x = dp(16)
+				}
+
+				windowManager.addView(view, params)
+				opacityControl = view
+		}
+
+		fun hideOpacityControl() {
+				opacityControl?.let { windowManager.removeView(it) }
+				opacityControl = null
+		}
 
     fun remove() {
+    		hideOpacityControl()
         controls?.let { windowManager.removeView(it) }
         controls = null
 
@@ -75,6 +100,19 @@ class OverlayWindowHost(
         background = null
         backgroundParams = null
     }
+    
+    fun setOpacity(opacity: Float) {
+				if (!opacity.isFinite()) return
+
+				val view = background ?: return
+				val params = backgroundParams ?: return
+				val newAlpha = opacity.coerceIn(0f, 0.8f)
+
+				if (params.alpha == newAlpha) return
+
+				params.alpha = newAlpha
+				windowManager.updateViewLayout(view, params)
+		}
 
     private fun dp(value: Int): Int = (value * density).toInt()
 }

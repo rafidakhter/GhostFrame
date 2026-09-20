@@ -7,70 +7,80 @@ import android.widget.Button
 import android.widget.PopupMenu
 
 class OverlayMenuView(
-	context: Context,
-	private val isRepositioning: () -> Boolean,
-	private val onToggleRepositioning: () -> Unit,
-	private val onClose: () -> Unit
+    context: Context,
+    private val isRepositioning: () -> Boolean,
+    private val onToggleRepositioning: () -> Unit,
+    private val onToggleOpacity: () -> Unit,
+    private val onClose: () -> Unit
 ) {
-	private var popup: PopupMenu? = null
+    private var popup: PopupMenu? = null
 
-	val view: Button = Button(context).apply {
-			text = "☰"
-			textSize = 22f
-			contentDescription = "Overlay options"
+    val view: Button = Button(context).apply {
+        text = "☰"
+        textSize = 22f
+        contentDescription = "Overlay options"
 
-			setTextColor(Color.BLACK)
-			backgroundTintList = null
-			background = GradientDrawable().apply {
-					shape = GradientDrawable.OVAL
-					setColor(Color.WHITE)
-			}
+        setTextColor(Color.BLACK)
+        backgroundTintList = null
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.WHITE)
+        }
 
-			setPadding(0, 0, 0, 0)
-			minWidth = 0
-			minHeight = 0
+        setPadding(0, 0, 0, 0)
+        minWidth = 0
+        minHeight = 0
 
-			setOnClickListener { showMenu() }
-	}
+        setOnClickListener { showMenu() }
+    }
 
-	private fun showMenu() {
-			dismiss()
+    private fun showMenu() {
+        dismiss()
 
-			popup = PopupMenu(view.context, view).apply {
-					menu.add(
-							0,
-							REPOSITION,
-							0,
-							if (isRepositioning()) "Done repositioning"
-							else "Reposition"
-					)
-					menu.add(0, CLOSE, 1, "Close")
+        popup = PopupMenu(view.context, view).apply {
+            menu.add(
+                0,
+                REPOSITION,
+                0,
+                if (isRepositioning()) "Done repositioning"
+                else "Reposition"
+            )
+            menu.add(0, OPACITY, 1, "Opacity")
+            menu.add(0, CLOSE, 2, "Close")
 
-					setOnMenuItemClickListener { item ->
-							when (item.itemId) {
-									REPOSITION -> {
-											onToggleRepositioning()
-											true
-									}
-									CLOSE -> {
-											onClose()
-											true
-									}
-									else -> false
-							}
-					}
+            setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    REPOSITION -> {
+                        onToggleRepositioning()
+                        true
+                    }
 
-					show()
-			}
-	}
+                    CLOSE -> {
+                        onClose()
+                        true
+                    }
 
-	fun dismiss() {
-			popup?.dismiss()
-			popup = null
-	}
+                    OPACITY -> {
+                        onToggleOpacity()
+                        true
+                    }
 
-	private companion object {
-			const val REPOSITION = 1
-			const val CLOSE = 2
-	}
+                    else -> false
+                }
+            }
+
+            show()
+        }
+    }
+
+    fun dismiss() {
+        popup?.dismiss()
+        popup = null
+    }
+
+    private companion object {
+        const val REPOSITION = 1
+        const val CLOSE = 2
+        const val OPACITY = 3
+    }
 }
