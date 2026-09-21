@@ -38,5 +38,8 @@ class OverlayPhotoView(context: Context) : FrameLayout(context) {
         photo.translationY = state.offsetY
         photo.scaleX = state.scale
         photo.scaleY = state.scale
+        // The default View pivot is its centre, also the FIT_CENTER photo's centre.
+        // Rotate only the image; the parent keeps gesture coordinates screen-aligned.
+        photo.rotation = state.rotationDegrees.toFloat()
     }
 }

@@ -5,7 +5,8 @@ data class OverlayState(
     val offsetY: Float = 0f,
     val scale: Float = 1f,
     val repositioning: Boolean = false,
-    val opacity: Float = 0.5f
+    val opacity: Float = 0.5f,
+    val rotationDegrees: Int = 0
 ) {
     fun dragBy(dx: Float, dy: Float): OverlayState {
         if (!repositioning) return this

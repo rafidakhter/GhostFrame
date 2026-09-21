@@ -24,6 +24,10 @@ class OverlayController(
         update(state.zoomBy(factor))
     }
 
+    fun rotateClockwise() {
+        update(state.copy(rotationDegrees = (state.rotationDegrees + 90) % 360))
+    }
+
     private fun update(newState: OverlayState) {
         state = newState
         onStateChanged(state)

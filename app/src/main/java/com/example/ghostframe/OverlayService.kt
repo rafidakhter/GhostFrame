@@ -66,6 +66,7 @@ class OverlayService : Service() {
                 )
             },
             onToggleOpacity = { toggleOpacitySlider() },
+            onRotate = { controller.rotateClockwise() },
             onClose = { stopSelf() }
         )
 
