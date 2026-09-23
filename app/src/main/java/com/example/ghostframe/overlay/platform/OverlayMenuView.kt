@@ -12,6 +12,7 @@ class OverlayMenuView(
     private val onToggleRepositioning: () -> Unit,
     private val onToggleOpacity: () -> Unit,
     private val onRotate: () -> Unit,
+    private val onCrop: () -> Unit,
     private val onClose: () -> Unit
 ) {
     private var popup: PopupMenu? = null
@@ -48,7 +49,8 @@ class OverlayMenuView(
             )
             menu.add(0, OPACITY, 1, "Opacity")
             menu.add(0, ROTATE, 2, "Rotate 90° clockwise")
-            menu.add(0, CLOSE, 3, "Close")
+            menu.add(0, CROP, 3, "Crop")
+            menu.add(0, CLOSE, 4, "Close")
 
             setOnMenuItemClickListener { item ->
                 when (item.itemId) {
@@ -72,6 +74,11 @@ class OverlayMenuView(
                         true
                     }
 
+                    CROP -> {
+                        onCrop()
+                        true
+                    }
+
                     else -> false
                 }
             }
@@ -90,5 +97,6 @@ class OverlayMenuView(
         const val CLOSE = 2
         const val OPACITY = 3
         const val ROTATE = 4
+        const val CROP = 5
     }
 }

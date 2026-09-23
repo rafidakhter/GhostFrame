@@ -28,6 +28,8 @@ class CoilPhotoLoader(
             .scale(Scale.FIT)
             .target(
                 onSuccess = { image ->
+                    // Coil applies EXIF orientation during decoding. Crop coordinates
+                    // therefore use this oriented drawable, not raw file dimensions.
                     onSuccess(image.asDrawable(appContext.resources))
                 }
             )

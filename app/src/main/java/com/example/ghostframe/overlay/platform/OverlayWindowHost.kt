@@ -13,6 +13,7 @@ class OverlayWindowHost(
     private var controls: View? = null
     private var backgroundParams: WindowManager.LayoutParams? = null
     private var opacityControl: View? = null
+    private var cropEditor: View? = null
 
     fun show(backgroundView: View, controlsView: View) {
         remove()
@@ -94,7 +95,31 @@ class OverlayWindowHost(
         opacityControl = null
     }
 
+    fun showCropEditor(view: View) {
+        hideCropEditor()
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        // No layout-under-system-bars flags: the dedicated editor uses the safe window area.
+        windowManager.addView(view, params)
+        cropEditor = view
+        background?.visibility = View.INVISIBLE
+        controls?.visibility = View.INVISIBLE
+    }
+
+    fun hideCropEditor() {
+        cropEditor?.let { windowManager.removeView(it) }
+        cropEditor = null
+        background?.visibility = View.VISIBLE
+        controls?.visibility = View.VISIBLE
+    }
+
     fun remove() {
+        hideCropEditor()
         hideOpacityControl()
         controls?.let { windowManager.removeView(it) }
         controls = null

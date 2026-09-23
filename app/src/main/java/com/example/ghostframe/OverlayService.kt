@@ -18,6 +18,7 @@ import com.example.ghostframe.overlay.data.PhotoLoad
 import com.example.ghostframe.overlay.data.PhotoLoader
 import com.example.ghostframe.overlay.platform.OverlayPhotoView
 import com.example.ghostframe.overlay.platform.OpacitySliderView
+import com.example.ghostframe.overlay.platform.CropEditorView
 
 class OverlayService : Service() {
 
@@ -67,6 +68,7 @@ class OverlayService : Service() {
             },
             onToggleOpacity = { toggleOpacitySlider() },
             onRotate = { controller.rotateClockwise() },
+            onCrop = { showCropEditor() },
             onClose = { stopSelf() }
         )
 
@@ -94,6 +96,7 @@ class OverlayService : Service() {
         photoLoad?.cancel()
         photoLoad = null
 
+        windowHost.hideCropEditor()
         layer.clearPhoto()
         controller.reset()
 
@@ -134,7 +137,7 @@ class OverlayService : Service() {
     private fun enablePhotoGestures(layer: OverlayPhotoView) {
         val gestures = PhotoGestureHandler(
             context = this,
-            isEnabled = { controller.state.repositioning },
+            isEnabled = { controller.state.repositioning && controller.state.cropDraft == null },
             onDrag = { dx, dy -> controller.dragBy(dx, dy) },
             onZoom = { factor -> controller.zoomBy(factor) }
         )
@@ -148,9 +151,44 @@ class OverlayService : Service() {
 
         if (::windowHost.isInitialized) {
             windowHost.setTouchThrough(
-                enabled = !state.repositioning
+                enabled = !state.repositioning || state.cropDraft != null
             )
             windowHost.setOpacity(state.opacity)
+        }
+    }
+
+    private fun showCropEditor() {
+        val layer = overlay ?: return
+        val image = layer.original ?: run {
+            Toast.makeText(this, "Wait for the photo to load.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (controller.state.cropDraft != null) return
+        hideOpacitySlider()
+        controller.beginCrop()
+        val editor = CropEditorView(
+            context = this,
+            image = image,
+            rotation = controller.state.rotationDegrees,
+            initial = controller.state.crop,
+            onDraft = { controller.updateCropDraft(it) },
+            onApply = {
+                controller.state.cropDraft?.let { draft ->
+                    val shift = layer.cropCenterShift(draft)
+                    controller.applyCrop(shift[0], shift[1])
+                }
+                windowHost.hideCropEditor()
+            },
+            onCancel = {
+                controller.cancelCrop()
+                windowHost.hideCropEditor()
+            }
+        )
+        try {
+            windowHost.showCropEditor(editor)
+        } catch (error: RuntimeException) {
+            controller.cancelCrop()
+            Toast.makeText(this, "Could not open crop controls.", Toast.LENGTH_SHORT).show()
         }
     }
 

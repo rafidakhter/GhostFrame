@@ -1,6 +1,7 @@
 package com.example.ghostframe.overlay.presentation
 
 import com.example.ghostframe.overlay.domain.OverlayState
+import com.example.ghostframe.overlay.domain.ImageCrop
 
 class OverlayController(
     private val onStateChanged: (OverlayState) -> Unit
@@ -26,6 +27,27 @@ class OverlayController(
 
     fun rotateClockwise() {
         update(state.copy(rotationDegrees = (state.rotationDegrees + 90) % 360))
+    }
+
+    fun beginCrop() {
+        update(state.copy(cropDraft = state.crop))
+    }
+
+    fun updateCropDraft(crop: ImageCrop) {
+        if (state.cropDraft != null) update(state.copy(cropDraft = crop))
+    }
+
+    fun cancelCrop() {
+        update(state.copy(cropDraft = null))
+    }
+
+    fun applyCrop(centerShiftX: Float, centerShiftY: Float) {
+        val draft = state.cropDraft ?: return
+        update(state.copy(
+            crop = draft, cropDraft = null,
+            offsetX = state.offsetX + centerShiftX,
+            offsetY = state.offsetY + centerShiftY
+        ))
     }
 
     private fun update(newState: OverlayState) {

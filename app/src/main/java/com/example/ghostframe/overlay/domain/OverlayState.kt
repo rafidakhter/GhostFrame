@@ -6,10 +6,12 @@ data class OverlayState(
     val scale: Float = 1f,
     val repositioning: Boolean = false,
     val opacity: Float = 0.5f,
-    val rotationDegrees: Int = 0
+    val rotationDegrees: Int = 0,
+    val crop: ImageCrop = ImageCrop(),
+    val cropDraft: ImageCrop? = null
 ) {
     fun dragBy(dx: Float, dy: Float): OverlayState {
-        if (!repositioning) return this
+        if (!repositioning || cropDraft != null) return this
 
         return copy(
             offsetX = offsetX + dx,
@@ -18,7 +20,7 @@ data class OverlayState(
     }
 
     fun zoomBy(factor: Float): OverlayState {
-        if (!repositioning || !factor.isFinite() || factor <= 0f) {
+        if (!repositioning || cropDraft != null || !factor.isFinite() || factor <= 0f) {
             return this
         }
 
