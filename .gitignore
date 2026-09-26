@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Local debug-build counter (kept across clean builds).
+/.debug-build-number

@@ -1,6 +1,12 @@
 package com.example.ghostframe.home
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.example.ghostframe.BuildConfig
+import com.example.ghostframe.R
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,6 +22,16 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
+        Text(
+            text = stringResource(
+                R.string.app_version_label,
+                BuildConfig.VERSION_NAME,
+                stringResource(R.string.build_identifier)
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        )
         Button(onClick = onChoosePhoto) {
             Text("Choose photo")
         }

@@ -59,3 +59,23 @@ app/build/outputs/apk/debug/app-debug.apk
 - Image cropping.
 - Fix opacity/repositioning interactions.
 - Further refactoring and automated tests.
+
+## Visible debug build numbers
+
+The home screen shows `Version 1.0 · Debug build N`. The version comes from
+`versionName` in `app/build.gradle.kts`; the debug number increments automatically
+whenever Gradle generates the debug APK's resources, including these workflows:
+
+- Android Studio **Run** (debug variant).
+- `./gradlew installDebug` to build and install on a connected device/emulator.
+- `./gradlew assembleDebug` followed by installing that APK.
+
+The local counter lives in `.debug-build-number`, is ignored by Git, and survives
+`./gradlew clean`. It is per checkout, not a shared release version. Failed builds
+can consume a number. Gradle sync/help alone does not increment it. Configuration
+cache reuse still generates a fresh number for each debug build.
+
+An existing APK retains its embedded number when reinstalled with `adb install`;
+run `installDebug` or rebuild first for a new number. Android Studio **Apply Changes**
+is not a substitute for a full Run when verifying which APK is installed.
+Release builds show the version with `Release`; their version code/name are unchanged.
