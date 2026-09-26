@@ -7,5 +7,6 @@ object GhostPalette {
     const val Border = 0xFF2A2E37.toInt()
     const val Text = 0xFFF2F3F5.toInt()
     const val Secondary = 0xFFA7ACB8.toInt()
+    const val Amber = 0xFFF5B841.toInt()
     const val Mint = 0xFF7CF0C4.toInt()
 }

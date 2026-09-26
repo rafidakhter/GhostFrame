@@ -1,7 +1,9 @@
 package com.example.ghostframe.overlay.platform
 
 import android.content.Context
-import android.graphics.Color
+import android.content.res.ColorStateList
+import android.graphics.Typeface
+import com.example.ghostframe.ui.theme.GhostPalette as Colors
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.widget.Button
@@ -19,7 +21,8 @@ class OpacitySliderView(
     private var dragging = false
 
     private val label = TextView(context).apply {
-        setTextColor(Color.BLACK)
+        setTextColor(Colors.Text)
+        typeface = Typeface.MONOSPACE
         textSize = 14f
         gravity = Gravity.CENTER
     }
@@ -28,12 +31,16 @@ class OpacitySliderView(
         max = 800
         progress = 500
         contentDescription = "Photo opacity"
+        progressTintList = ColorStateList.valueOf(Colors.Mint)
+        progressBackgroundTintList = ColorStateList.valueOf(Colors.Border)
+        thumbTintList = ColorStateList.valueOf(Colors.Mint)
     }
 
     init {
         background = GradientDrawable().apply {
-            setColor(Color.WHITE)
-            cornerRadius = dp(24).toFloat()
+            setColor(Colors.Surface)
+            setStroke(dp(1), Colors.Border)
+            cornerRadius = dp(16).toFloat()
         }
 
         addView(
@@ -50,6 +57,8 @@ class OpacitySliderView(
         val doneButton = Button(context).apply {
             text = "Done"
             isAllCaps = false
+            setTextColor(Colors.Mint)
+            backgroundTintList = ColorStateList.valueOf(Colors.Surface)
             setOnClickListener { onDismiss() }
         }
 

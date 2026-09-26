@@ -31,6 +31,7 @@ class OverlayService : Service() {
     )
     private var photoLoad: PhotoLoad? = null
     private var opacitySlider: OpacitySliderView? = null
+    private var photoGesturesEnabled = false
 
     override fun onCreate() {
         super.onCreate()
@@ -54,22 +55,14 @@ class OverlayService : Service() {
 
         val layer = OverlayPhotoView(this)
         overlay = layer
-        enablePhotoGestures(layer)
 
         // Separate button window: fully opaque and tappable.
         val menu = OverlayMenuView(
             context = this,
-            isRepositioning = { controller.state.repositioning },
-            onToggleRepositioning = {
-                hideOpacitySlider()
-                controller.setRepositioning(
-                    !controller.state.repositioning
-                )
-            },
-            onToggleOpacity = { toggleOpacitySlider() },
-            onRotate = { controller.rotateClockwise() },
-            onCrop = { showCropEditor() },
-            onClose = { stopSelf() }
+            host = windowHost,
+            onTool = { tool -> selectTool(tool) },
+            onDismiss = { dismissEditing() },
+            onUnpin = { stopSelf() }
         )
 
         overlayMenu = menu
@@ -96,6 +89,7 @@ class OverlayService : Service() {
         photoLoad?.cancel()
         photoLoad = null
 
+        overlayMenu?.dismissTools()
         windowHost.hideCropEditor()
         layer.clearPhoto()
         controller.reset()
@@ -147,6 +141,16 @@ class OverlayService : Service() {
 
     private fun renderOverlay(state: OverlayState) {
         overlay?.render(state)
+        val gesturesEnabled = state.repositioning && state.cropDraft == null
+        if (gesturesEnabled != photoGesturesEnabled) {
+            photoGesturesEnabled = gesturesEnabled
+            overlay?.let { layer ->
+                // A control window can interrupt a touch sequence. Start each Move
+                // session with fresh drag/pinch tracking, not a previous detector.
+                if (gesturesEnabled) enablePhotoGestures(layer)
+                else layer.setOnTouchListener(null)
+            }
+        }
         opacitySlider?.render(state.opacity)
 
         if (::windowHost.isInitialized) {
@@ -155,6 +159,39 @@ class OverlayService : Service() {
             )
             windowHost.setOpacity(state.opacity)
         }
+    }
+
+    private fun cancelCropEditing() {
+        if (controller.state.cropDraft != null) controller.cancelCrop()
+        windowHost.hideCropEditor()
+    }
+
+    private fun dismissEditing() {
+        cancelCropEditing()
+        hideOpacitySlider()
+        controller.setRepositioning(false)
+    }
+
+    private fun selectTool(tool: String) {
+        val hadOpacity = opacitySlider != null
+        cancelCropEditing()
+        hideOpacitySlider()
+        // Selecting Move always activates it; X is the explicit way to exit.
+        // Apply one mode transition after dismissing the previous tool's windows.
+        controller.setRepositioning(tool == "Move")
+        overlayMenu?.select(tool)
+        when (tool) {
+            "Move" -> Unit
+            "Opacity" -> if (!hadOpacity) toggleOpacitySlider() else overlayMenu?.select(null)
+            "Crop" -> showCropEditor()
+            "Rotate" -> controller.rotateClockwise()
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        overlayMenu?.relayout()
+        opacitySlider?.let { windowHost.showOpacityControl(it) }
     }
 
     private fun showCropEditor() {
@@ -178,10 +215,12 @@ class OverlayService : Service() {
                     controller.applyCrop(shift[0], shift[1])
                 }
                 windowHost.hideCropEditor()
+                overlayMenu?.select(null)
             },
             onCancel = {
                 controller.cancelCrop()
                 windowHost.hideCropEditor()
+                overlayMenu?.select(null)
             }
         )
         try {
@@ -203,7 +242,7 @@ class OverlayService : Service() {
 
         val slider = OpacitySliderView(
             context = this,
-            onDismiss = { hideOpacitySlider() },
+            onDismiss = { hideOpacitySlider(); overlayMenu?.select(null) },
             onOpacityChanged = { controller.setOpacity(it) }
         )
 
